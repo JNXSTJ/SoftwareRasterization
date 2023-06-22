@@ -19,6 +19,13 @@ enum FillMode {
     FILL_MODE_SOLID, // 实心
 };
 
+struct Pso
+{
+    Pso(): cullingState(CullingState::BackCulling), fillMode(FillMode::FILL_MODE_SOLID) {}
+    CullingState cullingState;
+    FillMode fillMode;
+};
+
 typedef struct Color {
     Color() {
         memset(arr, 0, sizeof(arr));
@@ -84,65 +91,72 @@ public:
         }
     }
 
-    void SetPso(CullingState cullingState, FillMode fillMode)
+    void SetPso(const Pso &pso)
     {
-        this->cullingState = cullingState;
-        this->fillMode = fillMode;
+        this->pso = pso;
     }
 
     void Rasterize(Triangle& tri)
     {
         auto normal = tri.ComputeNormal();
-        if (cullingState == CullingState::BackCulling and normal.z() < 0.0f)
+        if (pso.cullingState == CullingState::BackCulling and normal.z() < 0.0f)
         {
             return;
         }
-        else if (cullingState == CullingState::FrontCulling and normal.z() > 0.0f)
+        else if (pso.cullingState == CullingState::FrontCulling and normal.z() > 0.0f)
         {
             return;
         }
-        if (fillMode == FillMode::FILL_MODE_SOLID)
+        if (pso.fillMode == FillMode::FILL_MODE_SOLID)
         {
 
         }
-        else if (fillMode == FillMode::FILL_MODE_WIREFRAME)
+        else if (pso.fillMode == FillMode::FILL_MODE_WIREFRAME)
         {
 
         }
     }
 private:
     std::vector<std::vector<Color>> backBuffer;
-    CullingState cullingState;
-    FillMode fillMode;
+    Pso pso;
 };
 
 class Mesh
 {
 public:
-    Mesh(): cullingState(BackCulling), fillMode(FILL_MODE_SOLID)
+    Mesh()
     {
-
     }
+
     bool Load(std::string file_path)
     {
         printf("load mesh file success!");
         return true;
     }
+
     void SetWorldMatrix(Mat4x4<float>& worldMat)
     {
         this->worldMat = worldMat;
     }
+
     void SetCullingState(CullingState cullingState)
     {
-        this->cullingState = cullingState;
+        this->pso.cullingState = cullingState;
     }
+
     void SetFillMode(FillMode fillMode)
     {
-        this->fillMode = fillMode;
+        this->pso.fillMode = fillMode;
     }
+
+    Pso GetPso()
+    {
+        return pso;
+    }
+
     void Render(std::shared_ptr<BackBuffer> ptr)
     {
-        ptr->SetPso(cullingState, fillMode);
+        ptr->SetPso(pso);
         for (auto &tri : triangles)
         {
             ptr->Rasterize(tri);
@@ -152,34 +166,54 @@ private:
     Mat4x4<float> worldMat;
     std::vector<Triangle> triangles;
     // pipeline state
-    CullingState cullingState;
-    FillMode fillMode;
+    Pso pso;
 };
 
+class Camera
+{
+public:
+    Camera() {}
+private:
+    Mat4x4<float> modelMat;
+};
 class Scene
 {
 public:
     Scene() {}
+
     void AddMesh(std::shared_ptr<Mesh> &mesh)
     {
         meshes.push_back(mesh);
     }
+
     void Render()
     {
         backBuffer->Clear();
         for (auto& mesh : meshes)
         {
-
+            backBuffer->SetPso(mesh->GetPso());
         }
     }
+
+    void SetViewMat(Mat4x4<float> viewMat)
+    {
+        this->viewMat = viewMat;
+    }
+
+    void SetProjMat(Mat4x4<float> projMat)
+    {
+        this->projMat = projMat;
+    }
+
 private:
     std::shared_ptr<BackBuffer> backBuffer;
     std::vector<std::shared_ptr<Mesh>> meshes;
+    Mat4x4<float> viewMat, projMat;
+    Camera camera;
 };
 
 int main()
 {
-    Mat4x4<float> view_mat, proj_mat;
     std::shared_ptr<Mesh> skull = std::make_shared<Mesh>();
     std::string path = "skull.txt";
     auto ret = skull->Load(path);
