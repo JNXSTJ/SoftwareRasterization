@@ -6,229 +6,105 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <cmath>
+#include <DirectXMath.h>
+#include <DirectXPackedVector.h>
+#include <opencv2/opencv.hpp>
 #include "MatUtil.hpp"
+#include "world.hpp"
 
-enum CullingState{
-    FrontCulling = 0,
-    BackCulling = 1,
-    NoneCulling = 2
-};
+using namespace DirectX;
+using namespace DirectX::PackedVector;
 
-enum FillMode {
-    FILL_MODE_WIREFRAME, // 线框
-    FILL_MODE_SOLID, // 实心
-};
+bool test = true;
 
-struct Pso
+std::ostream& operator<<(std::ostream& os, XMMATRIX& obj) {
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+            float value = DirectX::XMVectorGetByIndex(obj.r[i], j);
+			os << std::setw(10) << std::setprecision(4) << std::fixed << value << " ";
+		}
+		os << std::endl;
+	}
+	return os;
+}
+
+void Test()
 {
-    Pso(): cullingState(CullingState::BackCulling), fillMode(FillMode::FILL_MODE_SOLID) {}
-    CullingState cullingState;
-    FillMode fillMode;
-};
+    Mat4x4<float> mat;
+    vector3f eyePos{ -20, 35, -50 };
+    vector3f focusPos{ 10, 0, 30 };
+    vector3f up{ 0, 1, 0};
 
-typedef struct Color {
-    Color() {
-        memset(arr, 0, sizeof(arr));
-    }
-    Color(float r, float g, float b)
-    {
-        arr[0] = r;
-        arr[1] = g;
-        arr[2] = b;
-        arr[3] = 1.0f;
-    }
-    Color(float r, float g, float b, float a)
-    {
-        arr[0] = r;
-        arr[1] = g;
-        arr[2] = b;
-        arr[3] = a;
+    mat.LookAt(eyePos, focusPos, up);
+    std::cout << mat << std::endl;
+    
+    auto eyePos1 = XMVectorSet(-20, 35, -50, 1.0f);
+    auto focusPos1 = XMVectorSet(10, 0, 30, 1.0f);
+    auto up1 = XMVectorSet(0, 1, 0, 0.0f);
+    auto ret = XMMatrixLookAtLH(eyePos1, focusPos1, up1);
+    std::cout << ret << std::endl;
+}
 
-    }
-    float arr[4];
-} Color;
-
-
-class Point
+void Test2()
 {
-public:
-    Point() {}
-    vector3f Pos() { return pos; }
-private:
-    vector3f pos;
-    float u, v;
-};
 
-class Triangle
-{
-public:
-    Triangle() {};
-    Triangle(Point a, Point b, Point c):
-        a(a), b(b), c(c) {}
-    vector3f ComputeNormal()
-    {
-        return (b.Pos() - a.Pos()).Cross(c.Pos() - b.Pos());
-    }
-private:
-    Point a, b, c;
-};
+    auto ret =Mat4x4<float>::SetProjection(1.0f, 100.0f, XMConvertToRadians(45.0), 4.0f / 3.0f);
+    std::cout << ret << std::endl;
+    auto ret2 = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0), 4.0f / 3.0f, 1.0f, 100.0f);
+    std::cout << ret2 << std::endl;
+}
 
-class BackBuffer
-{
-public:
-    BackBuffer() {}
-    void Clear(float r = 0.0f, float g = 0.0f, float b = 0.0f)
-    {
-        size_t N = backBuffer.size();
-        if (N == 0) return;
-        size_t M = backBuffer[0].size();
-        for (size_t i = 0; i < N; i++)
-        {
-            for (size_t j = 0; j < M; j++)
-            {
-                backBuffer[i][j] = Color(r, g, b);
-            }
-        }
-    }
-
-    void SetPso(const Pso &pso)
-    {
-        this->pso = pso;
-    }
-
-    void Rasterize(Triangle& tri)
-    {
-        auto normal = tri.ComputeNormal();
-        if (pso.cullingState == CullingState::BackCulling and normal.z() < 0.0f)
-        {
-            return;
-        }
-        else if (pso.cullingState == CullingState::FrontCulling and normal.z() > 0.0f)
-        {
-            return;
-        }
-        if (pso.fillMode == FillMode::FILL_MODE_SOLID)
-        {
-
-        }
-        else if (pso.fillMode == FillMode::FILL_MODE_WIREFRAME)
-        {
-
-        }
-    }
-private:
-    std::vector<std::vector<Color>> backBuffer;
-    Pso pso;
-};
-
-class Mesh
-{
-public:
-    Mesh()
-    {
-    }
-
-    bool Load(std::string file_path)
-    {
-        printf("load mesh file success!");
-        return true;
-    }
-
-    void SetWorldMatrix(Mat4x4<float>& worldMat)
-    {
-        this->worldMat = worldMat;
-    }
-
-    void SetCullingState(CullingState cullingState)
-    {
-        this->pso.cullingState = cullingState;
-    }
-
-    void SetFillMode(FillMode fillMode)
-    {
-        this->pso.fillMode = fillMode;
-    }
-
-    Pso GetPso()
-    {
-        return pso;
-    }
-
-    void Render(std::shared_ptr<BackBuffer> ptr)
-    {
-        ptr->SetPso(pso);
-        for (auto &tri : triangles)
-        {
-            ptr->Rasterize(tri);
-        }
-    }
-private:
-    Mat4x4<float> worldMat;
-    std::vector<Triangle> triangles;
-    // pipeline state
-    Pso pso;
-};
-
-class Camera
-{
-public:
-    Camera() {}
-private:
-    Mat4x4<float> modelMat;
-};
-class Scene
-{
-public:
-    Scene() {}
-
-    void AddMesh(std::shared_ptr<Mesh> &mesh)
-    {
-        meshes.push_back(mesh);
-    }
-
-    void Render()
-    {
-        backBuffer->Clear();
-        for (auto& mesh : meshes)
-        {
-            backBuffer->SetPso(mesh->GetPso());
-        }
-    }
-
-    void SetViewMat(Mat4x4<float> viewMat)
-    {
-        this->viewMat = viewMat;
-    }
-
-    void SetProjMat(Mat4x4<float> projMat)
-    {
-        this->projMat = projMat;
-    }
-
-private:
-    std::shared_ptr<BackBuffer> backBuffer;
-    std::vector<std::shared_ptr<Mesh>> meshes;
-    Mat4x4<float> viewMat, projMat;
-    Camera camera;
-};
 
 int main()
 {
+    const int width = 700, height = 700;
     std::shared_ptr<Mesh> skull = std::make_shared<Mesh>();
+    std::shared_ptr<Scene> scene = std::make_shared<Scene>(width, height);
     std::string path = "skull.txt";
-    auto ret = skull->Load(path);
-    if (ret == false)
+    if (test)
     {
-        printf("load skull failed!\n");
-        exit(1);
+        skull->Test();
+    }
+    else
+    {
+		auto ret = skull->Load(path);
+		if (ret == false)
+		{
+			printf("load skull failed!\n");
+			exit(1);
+		}
+    }
+    scene->AddMesh(skull);
+
+    constexpr double PI = 3.141592653;
+    float nearPlane = 0.1f, farPlane = 50.0f;
+    float fovAngleY = PI / 4.0f, aspect = 1.0f;
+    scene->SetProjection(nearPlane, farPlane, fovAngleY, aspect);
+
+    std::shared_ptr<Camera> camera = std::make_shared<Camera>();
+    camera->LookAt({0, 0, 5}, {0, 0, 6}, {0, 1, 0});
+    scene->SetCamera(camera);
+    std::shared_ptr<BackBuffer> backBuffer = std::make_shared<BackBuffer>();
+
+    int key = 0;
+    int frame_count = 0;
+    while (key != 27)
+    {
+        scene->Render();
+
+        auto data = scene->GetBackBuffer()->Data();
+        cv::Mat image(width, height, CV_32FC4, data.data());
+        image.convertTo(image, CV_8UC3, 1.0f);
+        cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+        cv::imshow("image", image);
+        key = cv::waitKey(10);
+
+        std::cout << "frame count: " << frame_count++ << '\n';
     }
 
-    std::shared_ptr<BackBuffer> backBuffer = std::make_shared<BackBuffer>();
-    while (true)
-    {
-        backBuffer->Clear(1.0f, 1.0f, 1.0f);
-        skull->Render(backBuffer);
-    }
     std::cout << "Hello World!\n";
 }
 
